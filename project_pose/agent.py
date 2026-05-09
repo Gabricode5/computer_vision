@@ -5,7 +5,7 @@ import requests
 
 app = FastAPI()
 
-OLLAMA_URL = "http://127.0.0.1:11435/api/generate" # Vérifie bien le port (souvent 11434)
+OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
 
 class AnalysisRequest(BaseModel):
     user_question: str
