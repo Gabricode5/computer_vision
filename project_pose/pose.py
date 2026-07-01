@@ -77,6 +77,7 @@ class poseDetector():
 
         self.results = None
         self.lmList = []
+        self.lmList3D = []
 
     def findPose(self, img, draw=True):
         imgRGB = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -97,12 +98,16 @@ class poseDetector():
 
     def findPosition(self, img, draw=True, couleur=(0, 0, 0)):
         self.lmList = []
+        self.lmList3D = []
         if self.results and self.results.pose_landmarks:
             for id, lm in enumerate(self.results.pose_landmarks.landmark):
                 h, w, c = img.shape
                 # print(id, lm)
                 cx, cy = int(lm.x * w), int(lm.y * h)
+                # z est une profondeur relative aux hanches, sur ~la même échelle que x
+                cz = round(lm.z * w, 1)
                 self.lmList.append([id, cx, cy])
+                self.lmList3D.append([id, cx, cy, cz])
                 if draw:
                     cv2.circle(img, (cx, cy), 5, couleur, cv2.FILLED)
         return self.lmList
@@ -133,6 +138,26 @@ class poseDetector():
             cv2.putText(img, str(int(angle)), (x2 - 50, y2 + 50),
                         cv2.FONT_HERSHEY_PLAIN, 2, (0, 0, 255), 2)
         return angle
+
+    def findAngle3D(self, p1, p2, p3):
+        """Angle (en degres) au point p2, calcule en 3D avec x, y et z.
+        Plus fiable que findAngle quand le corps n'est pas face a la camera,
+        car il n'est pas fausse par la projection sur le plan de l'image."""
+        x1, y1, z1 = self.lmList3D[p1][1:]
+        x2, y2, z2 = self.lmList3D[p2][1:]
+        x3, y3, z3 = self.lmList3D[p3][1:]
+
+        v1 = (x1 - x2, y1 - y2, z1 - z2)
+        v2 = (x3 - x2, y3 - y2, z3 - z2)
+
+        norm1 = math.sqrt(v1[0] ** 2 + v1[1] ** 2 + v1[2] ** 2)
+        norm2 = math.sqrt(v2[0] ** 2 + v2[1] ** 2 + v2[2] ** 2)
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+
+        dot = v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]
+        cos_angle = max(-1.0, min(1.0, dot / (norm1 * norm2)))
+        return math.degrees(math.acos(cos_angle))
 
     def findCenter(self, img, p1, p2, draw=True, couleur=(0, 0, 255)):
 

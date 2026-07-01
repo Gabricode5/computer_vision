@@ -60,6 +60,8 @@ def draw_faces(image_bgr, face_cascade):
 def build_pose_data(lm_list):
     if not lm_list:
         return "Aucune donnee de pose disponible."
+    if len(lm_list[0]) >= 4:
+        return "\n".join([f"ID {p[0]}: x={p[1]}, y={p[2]}, z={p[3]}" for p in lm_list])
     return "\n".join([f"ID {p[0]}: x={p[1]}, y={p[2]}" for p in lm_list])
 
 
@@ -103,7 +105,7 @@ class PoseFaceProcessor(VideoProcessorBase):
         )
 
         with self.lock:
-            self.last_lm_list = lm_list
+            self.last_lm_list = self.detector.lmList3D
 
         return av.VideoFrame.from_ndarray(annotated, format="bgr24")
 
@@ -141,7 +143,7 @@ if mode == "Image":
             st.info(generer_description(detector.results))
             st.caption(f"Visages detectes: {face_count}")
 
-            st.session_state.last_pose_data = build_pose_data(lm_list)
+            st.session_state.last_pose_data = build_pose_data(detector.lmList3D)
 
             if lm_list and st.session_state.last_image_id != image_id:
                 with st.spinner("BOB analyse votre posture..."):
