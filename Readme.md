@@ -1,5 +1,8 @@
 étape 1 : créer un environnement virtuel Python
     python3 -m venv venv
+
+    Si windows faire cette commande : Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+    
     source venv/bin/activate
 
 étape 2 : installer les dépendances
