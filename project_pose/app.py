@@ -1,3 +1,4 @@
+import math
 import threading
 
 import cv2
@@ -63,6 +64,84 @@ def build_pose_data(lm_list):
     if len(lm_list[0]) >= 4:
         return "\n".join([f"ID {p[0]}: x={p[1]}, y={p[2]}, z={p[3]}" for p in lm_list])
     return "\n".join([f"ID {p[0]}: x={p[1]}, y={p[2]}" for p in lm_list])
+
+
+ANGLES_ARTICULAIRES = {
+    "Coude gauche": (11, 13, 15),
+    "Coude droit": (12, 14, 16),
+    "Hanche gauche": (11, 23, 25),
+    "Hanche droite": (12, 24, 26),
+    "Genou gauche": (23, 25, 27),
+    "Genou droit": (24, 26, 28),
+}
+
+
+def _angle_3_points(lm_par_id, p1, p2, p3):
+    if not all(p in lm_par_id for p in (p1, p2, p3)):
+        return None
+
+    x1, y1, z1 = lm_par_id[p1][1:]
+    x2, y2, z2 = lm_par_id[p2][1:]
+    x3, y3, z3 = lm_par_id[p3][1:]
+
+    v1 = (x1 - x2, y1 - y2, z1 - z2)
+    v2 = (x3 - x2, y3 - y2, z3 - z2)
+
+    norme1 = math.sqrt(sum(c ** 2 for c in v1))
+    norme2 = math.sqrt(sum(c ** 2 for c in v2))
+    if norme1 == 0 or norme2 == 0:
+        return None
+
+    produit_scalaire = sum(a * b for a, b in zip(v1, v2))
+    cos_angle = max(-1.0, min(1.0, produit_scalaire / (norme1 * norme2)))
+    return math.degrees(math.acos(cos_angle))
+
+
+def _inclinaison_tronc(lm_par_id):
+    if not all(p in lm_par_id for p in (11, 12, 23, 24)):
+        return None
+
+    epaule_milieu = [(lm_par_id[11][k] + lm_par_id[12][k]) / 2 for k in (1, 2, 3)]
+    hanche_milieu = [(lm_par_id[23][k] + lm_par_id[24][k]) / 2 for k in (1, 2, 3)]
+
+    vx = epaule_milieu[0] - hanche_milieu[0]
+    vy = epaule_milieu[1] - hanche_milieu[1]
+    vz = epaule_milieu[2] - hanche_milieu[2]
+
+    norme = math.sqrt(vx ** 2 + vy ** 2 + vz ** 2)
+    if norme == 0:
+        return None
+
+    # Vertical de reference = -y (le haut de l'image) ; un tronc droit est aligne dessus
+    cos_angle = max(-1.0, min(1.0, (-vy) / norme))
+    return math.degrees(math.acos(cos_angle))
+
+
+def build_angles_data(lm_list):
+    if not lm_list or len(lm_list[0]) < 4:
+        return ""
+
+    lm_par_id = {p[0]: p for p in lm_list}
+    lignes = []
+
+    for nom, (p1, p2, p3) in ANGLES_ARTICULAIRES.items():
+        angle = _angle_3_points(lm_par_id, p1, p2, p3)
+        if angle is not None:
+            lignes.append(f"{nom}: {angle:.1f} degres")
+
+    tronc = _inclinaison_tronc(lm_par_id)
+    if tronc is not None:
+        lignes.append(f"Inclinaison du tronc (vs vertical): {tronc:.1f} degres")
+
+    return "\n".join(lignes)
+
+
+def build_llm_payload(lm_list):
+    coordonnees = build_pose_data(lm_list)
+    angles = build_angles_data(lm_list)
+    if not angles:
+        return coordonnees
+    return f"{coordonnees}\n\nAngles articulaires calcules:\n{angles}"
 
 
 def call_bob(user_question, pose_data):
@@ -143,7 +222,7 @@ if mode == "Image":
             st.info(generer_description(detector.results))
             st.caption(f"Visages detectes: {face_count}")
 
-            st.session_state.last_pose_data = build_pose_data(detector.lmList3D)
+            st.session_state.last_pose_data = build_llm_payload(detector.lmList3D)
 
             if lm_list and st.session_state.last_image_id != image_id:
                 with st.spinner("BOB analyse votre posture..."):
@@ -183,7 +262,7 @@ else:
             with processor.lock:
                 current_lm_list = list(processor.last_lm_list)
             if current_lm_list:
-                st.session_state.last_pose_data = build_pose_data(current_lm_list)
+                st.session_state.last_pose_data = build_llm_payload(current_lm_list)
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
