@@ -19,7 +19,8 @@ async def analyze_pose(request: AnalysisRequest):
         f"Voici les coordonnées (id, x, y, z) des 33 points clés du corps détectés par MediaPipe :\n"
         f"{request.pose_data}\n\n"
         f"L'utilisateur demande : {request.user_question}\n"
-        f"Réponds avec précision scientifique sur la posture."
+        f"Réponds avec précision scientifique sur la posture, "
+        f"puis propose des recommandations concrètes pour l'améliorer."
     )
 
     payload = {
